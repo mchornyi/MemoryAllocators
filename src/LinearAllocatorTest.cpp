@@ -43,4 +43,4 @@ static void RunTest()
 	Test::GetTestResults().emplace("LinerAllocator    ", duration);
 }
 
-TEST_REGISTER(LinerAllocator, RunTest);
+TEST_REGISTER(LinerAllocatorTest, RunTest);

@@ -51,4 +51,4 @@ static void RunTest()
 	Test::GetTestResults().emplace("StackAllocator    ", duration);
 }
 
-TEST_REGISTER(StackAllocator, RunTest);
+TEST_REGISTER(StackAllocatorTest, RunTest);

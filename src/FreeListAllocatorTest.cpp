@@ -49,4 +49,4 @@ static void RunTest()
 	Test::GetTestResults().emplace("FreeListAllocator ", duration);
 }
 
-TEST_REGISTER(FreeListAllocator, RunTest);
+TEST_REGISTER(FreeListAllocatorTest, RunTest);

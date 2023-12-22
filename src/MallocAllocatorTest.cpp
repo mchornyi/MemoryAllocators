@@ -42,4 +42,4 @@ static void RunTest()
 	Test::GetTestResults().emplace("MallocAllocator   ", duration);
 }
 
-TEST_REGISTER(Malloc, RunTest);
+TEST_REGISTER(MallocAllocatorTest, RunTest);
