@@ -9,7 +9,7 @@
                 "-g",
                 "${fileDirname}/*.cpp",
                 "-o",
-                "${fileDirname}/application",
+                "${workspaceFolder}/bin/application",
                 "-lpthread"
             ],
             "options": {
