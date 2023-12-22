@@ -48,7 +48,7 @@ static void RunTest()
 		std::cout << green << "Test Passed!\n" << white;
 	}
 
-	Test::GetTestResults().emplace("StackAllocator   ", duration);
+	Test::GetTestResults().emplace("StackAllocator    ", duration);
 }
 
 TEST_REGISTER(StackAllocator, RunTest);

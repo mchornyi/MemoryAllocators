@@ -136,7 +136,63 @@ static void RunTest()
 		std::cout << green << "Test Passed!\n" << white;
 	}
 
-	Test::GetTestResults().emplace("PoolAllocator    ", duration);
+	Test::GetTestResults().emplace("PoolAllocator     ", duration);
 }
 
-TEST_REGISTER(PoolAllocator, RunTest);
+TEST_REGISTER(PoolAllocatorTest, RunTest);
+
+static void RunMultiThreadTest()
+{
+	std::cout << "StartMultiThreadTest: PoolAllocator\n";
+	std::cout << "Desc: Creates 9 pool allocators of different chunk size. Create 2 threads. Each thread allocates chunks(MaxChunksNum) of size = 'rand() % sMaxChunkSize + 1'. Deallocates in random order.\n";
+	std::cout << "MaxChunksNum " << sMaxChunksNum << "\n";
+	std::cout << "MaxChunkSize " << sMaxChunkSize << "\n";
+
+	PoolAllocators allocators;
+
+	auto threadFunc = [&allocators](){
+		std::vector<void*> memPointers;
+		memPointers.reserve(sMaxChunksNum);
+
+		for (std::size_t i = 0; i < sMaxChunksNum / 2; ++i)
+		{
+			const auto size = rand() % sMaxChunkSize + 1;
+			auto* p = allocators.Allocate(size);
+			memPointers.emplace_back(p);
+		}
+
+		const std::size_t memPointersNum = memPointers.size();
+		for (int i = memPointersNum - 1; i >= 0; --i)
+		{
+			const auto idx = (i != 0 ? rand() % i : 0);
+			allocators.Free(memPointers[idx]);
+			memPointers.erase(memPointers.begin() + idx);
+		}
+	};
+	
+	const auto start = std::chrono::high_resolution_clock::now();
+	
+	std::thread thread1(threadFunc);
+	std::thread thread2(threadFunc);
+	
+	thread1.join();
+	thread2.join();
+
+	const auto finish = std::chrono::high_resolution_clock::now();
+	const auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
+
+	std::cout << "Time = " << duration << "ns\n";
+
+	if (allocators.GetUsedSize() > 0)
+	{
+		std::cout << red << "Test Failed!\n" << white;
+	}
+	else
+	{
+		std::cout << green << "Test Passed!\n" << white;
+	}
+
+	Test::GetTestResults().emplace("PoolAllocatorMulti", duration);
+}
+
+TEST_REGISTER(PoolAllocatorMultiTest, RunMultiThreadTest);

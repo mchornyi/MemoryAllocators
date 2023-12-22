@@ -39,7 +39,7 @@ static void RunTest()
 
 	std::cout << green << "Test Passed!\n" << white;
 
-	Test::GetTestResults().emplace("MallocAllocator  ", duration);
+	Test::GetTestResults().emplace("MallocAllocator   ", duration);
 }
 
 TEST_REGISTER(Malloc, RunTest);

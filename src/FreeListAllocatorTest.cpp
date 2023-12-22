@@ -46,7 +46,7 @@ static void RunTest()
 		std::cout << green << "Test Passed!\n" << white;
 	}
 
-	Test::GetTestResults().emplace("FreeListAllocator", duration);
+	Test::GetTestResults().emplace("FreeListAllocator ", duration);
 }
 
 TEST_REGISTER(FreeListAllocator, RunTest);

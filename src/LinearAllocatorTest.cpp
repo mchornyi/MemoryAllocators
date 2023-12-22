@@ -40,7 +40,7 @@ static void RunTest()
 		std::cout << green << "Test Passed!\n" << white;
 	}
 
-	Test::GetTestResults().emplace("LinerAllocator   ", duration);
+	Test::GetTestResults().emplace("LinerAllocator    ", duration);
 }
 
 TEST_REGISTER(LinerAllocator, RunTest);
