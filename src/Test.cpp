@@ -20,7 +20,7 @@ void PrintResults()
 	std::cout << "Test results:\n";
 	for (auto& result : Test::GetTestResults())
 	{
-		std::cout << result.first << ": " << result.second << "ns\n";
+		std::cout << result.first << ": " << result.second << " ns\n";
 	}
 }
 

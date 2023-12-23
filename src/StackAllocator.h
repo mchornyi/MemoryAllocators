@@ -1,17 +1,12 @@
 #pragma once
+
 #include "AllocatorInterface.h"
+#include <cassert>
 
 namespace MemAlloc
 {
 	class StackAllocator : public AllocatorInterface
 	{
-		struct alignas(sizeof(std::size_t)) AllocationHeader
-		{
-			char padding;
-		};
-
-		const std::size_t cAllocationHeaderSize = sizeof(AllocationHeader);
-
 	public:
 		StackAllocator(StackAllocator& stackAllocator) = delete;
 
@@ -38,36 +33,27 @@ namespace MemAlloc
 
 		void* Allocate(const std::size_t size, const std::size_t alignment = sizeof(std::size_t)) override
 		{
-			const std::size_t currentAddress = PTR_TO_INT(m_start_ptr) + m_offset;
+			const std::size_t padding = size % alignment;
+			const std::size_t requiredSize = m_offset + padding + size;
 
-			const std::size_t padding = CalculatePadding(currentAddress, alignment);
-
-			if (m_offset + padding + cAllocationHeaderSize + size > m_totalSize)
+			assert(requiredSize <= m_totalSize && "The pool allocator is full");
+			if (requiredSize > m_totalSize)
 			{
 				return nullptr;
 			}
 
-			const std::size_t nextAddress = currentAddress + padding;
-			AllocationHeader* allocationHeader = reinterpret_cast<AllocationHeader*>(nextAddress);
-			allocationHeader->padding = static_cast<char>(padding);
+			void* freeChunk = reinterpret_cast<void*>(PTR_TO_INT(m_start_ptr) + m_offset);
 
-			m_offset += padding + cAllocationHeaderSize + size;
+			m_offset += padding + size;
 			m_used = m_offset;
 
-			const std::size_t resultAddress = PTR_TO_INT(allocationHeader) + cAllocationHeaderSize;
-			return (void*)resultAddress;
+			return freeChunk;
 		}
 
 		bool Free(void* ptr) override
 		{
 			// Move offset back to clear address
-			const std::size_t currentAddress = PTR_TO_INT(ptr);
-			const std::size_t headerAddress = currentAddress - cAllocationHeaderSize;
-
-			const AllocationHeader* allocationHeader{reinterpret_cast<AllocationHeader*>(headerAddress)};
-
-			m_offset = (headerAddress - allocationHeader->padding) - PTR_TO_INT(m_start_ptr);
-			m_used = m_offset;
+			m_used = m_offset = (PTR_TO_INT(ptr) - PTR_TO_INT(m_start_ptr));
 
 			return true;
 		}
