@@ -99,9 +99,9 @@ namespace MemAlloc
 	private:
 		void** m_freeChunks = nullptr;
 		void* m_start_ptr = nullptr;
-		int64_t m_currFreeChunksIdx = -1;
-		std::size_t m_chunkSize = 0;
 		std::size_t m_chunksNum = 0;
+		std::size_t m_chunkSize = 0;
+		int64_t m_currFreeChunksIdx = -1;
 		Spinlock m_spinlock;
 	};
 } // namespace MemAlloc
