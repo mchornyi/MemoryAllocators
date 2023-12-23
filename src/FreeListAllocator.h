@@ -181,8 +181,7 @@ namespace MemAlloc
 		void FindFirst(const std::size_t size, FreeNode*& previousNode, FreeNode*& foundNode) const
 		{
 			//Iterate list and return the first free block with a size >= than given size
-			FreeNode *it = m_freeList.head,
-			     *itPrev = nullptr;
+			FreeNode *it = m_freeList.head, *itPrev = nullptr;
 
 			while (it != nullptr)
 			{

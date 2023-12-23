@@ -13,16 +13,16 @@ namespace MemAlloc
 		PoolAllocator(const PoolAllocator& poolAllocator) : AllocatorInterface(poolAllocator)
 		{
 			m_chunkSize = poolAllocator.m_chunkSize;
+			m_chunksNum = poolAllocator.m_chunksNum;
 			m_freeList = poolAllocator.m_freeList;
 			m_start_ptr = poolAllocator.m_start_ptr;
 		}
 
-		PoolAllocator(const std::size_t totalSize, const std::size_t chunkSize)
-			: AllocatorInterface(totalSize)
+		PoolAllocator(const std::size_t chunksNum, const std::size_t chunkSize)
+			: AllocatorInterface(chunksNum*chunkSize), m_chunksNum(chunksNum), m_chunkSize(chunkSize)
 		{
-			assert(((chunkSize % 8)==0) && "Chunk size must be aligned to 8");
-			assert(totalSize % chunkSize == 0 && "Total Size must be a multiple of Chunk Size");
-			m_chunkSize = chunkSize;
+			assert(((chunkSize % sizeof(std::size_t))==0) && "Chunk size must be aligned to std::size_t");
+			assert(m_totalSize % chunkSize == 0 && "Total Size must be a multiple of Chunk Size");
 		}
 
 		void Init() override
@@ -40,7 +40,7 @@ namespace MemAlloc
 		{
 			assert(allocationSize <= m_chunkSize && "Allocation size must be <= to chunk size");
 
-			SpinlockGuard guard(mSpinlock);
+			SpinlockGuard guard(m_spinlock);
 
 			Node* freeNode = m_freeList.pop();
 
@@ -55,7 +55,7 @@ namespace MemAlloc
 
 		bool Free(void* ptr) override
 		{
-			SpinlockGuard guard(mSpinlock);
+			SpinlockGuard guard(m_spinlock);
 
 			if (PTR_TO_INT(ptr) < PTR_TO_INT(m_start_ptr) || PTR_TO_INT(ptr) >
 				PTR_TO_INT(m_start_ptr) + m_totalSize)
@@ -72,7 +72,7 @@ namespace MemAlloc
 
 		void Reset()
 		{
-			SpinlockGuard guard(mSpinlock);
+			SpinlockGuard guard(m_spinlock);
 
 			m_used = 0;
 			// Create a linked-list with all free positions
@@ -100,6 +100,7 @@ namespace MemAlloc
 		StackLinkedList<FreeHeader> m_freeList;
 		void* m_start_ptr = nullptr;
 		std::size_t m_chunkSize = 0;
-		Spinlock mSpinlock;
+		std::size_t m_chunksNum = 0;
+		Spinlock m_spinlock;
 	};
 } // namespace MemAlloc

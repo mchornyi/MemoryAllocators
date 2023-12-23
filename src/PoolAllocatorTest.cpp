@@ -82,15 +82,15 @@ public:
 
 private:
 	std::array<PoolAllocator, 9> mAllocators = {
-		PoolAllocator(static_cast<uint32_t>(64) * sMaxChunksNum, 64),
-		PoolAllocator(static_cast<uint32_t>(128) * sMaxChunksNum, 128),
-		PoolAllocator(static_cast<uint32_t>(256) * sMaxChunksNum, 256),
-		PoolAllocator(static_cast<uint32_t>(512) * sMaxChunksNum, 512),
-		PoolAllocator(static_cast<uint32_t>(1024) * sMaxChunksNum, 1024),
-		PoolAllocator(static_cast<uint32_t>(2048) * sMaxChunksNum, 2048),
-		PoolAllocator(static_cast<uint32_t>(3072) * sMaxChunksNum, 3072),
-		PoolAllocator(static_cast<uint32_t>(4096) * sMaxChunksNum, 4096),
-		PoolAllocator(static_cast<uint32_t>(5120) * sMaxChunksNum, 5120)
+		PoolAllocator(sMaxChunksNum, 64),
+		PoolAllocator(sMaxChunksNum, 128),
+		PoolAllocator(sMaxChunksNum, 256),
+		PoolAllocator(sMaxChunksNum, 512),
+		PoolAllocator(sMaxChunksNum, 1024),
+		PoolAllocator(sMaxChunksNum, 2048),
+		PoolAllocator(sMaxChunksNum, 3072),
+		PoolAllocator(sMaxChunksNum, 4096),
+		PoolAllocator(sMaxChunksNum, 5120)
 	};
 };
 
