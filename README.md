@@ -1,4 +1,5 @@
 # MemoryAllocators
+
 Simple memory allocators with tests
 
 * LinerAllocator
@@ -8,7 +9,7 @@ Simple memory allocators with tests
 * MallocAllocator
 * FreeListAllocator
 
-```
+```text
 StartTest: FreeListAllocator
 Desc: Allocates chunks(MaxChunksNum) of size = 'rand() % sMaxChunkSize + 1'. Deallocates in random order.
 MaxChunksNum 10000
