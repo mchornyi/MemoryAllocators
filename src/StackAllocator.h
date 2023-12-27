@@ -33,7 +33,7 @@ namespace MemAlloc
 
 		void* Allocate(const std::size_t size, const std::size_t alignment = sizeof(std::size_t)) override
 		{
-			const std::size_t padding = size % alignment;
+			const std::size_t padding = alignment - size % alignment;
 			const std::size_t requiredSize = m_offset + padding + size;
 
 			assert(requiredSize <= m_totalSize && "The pool allocator is full");
@@ -42,12 +42,14 @@ namespace MemAlloc
 				return nullptr;
 			}
 
-			void* freeChunk = reinterpret_cast<void*>(PTR_TO_INT(m_start_ptr) + m_offset);
+			void* dataAddress = reinterpret_cast<void*>(PTR_TO_INT(m_start_ptr) + m_offset);
 
 			m_offset += padding + size;
 			m_used = m_offset;
 
-			return freeChunk;
+			assert(PTR_TO_INT(dataAddress) % alignment == 0 && "Data address must be aligment");
+
+			return dataAddress;
 		}
 
 		bool Free(void* ptr) override

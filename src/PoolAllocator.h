@@ -52,11 +52,13 @@ namespace MemAlloc
 				return nullptr;
 			}
 
-			void* freeChunk = m_freeChunks[m_currFreeChunksIdx--];
+			void* dataAddress = m_freeChunks[m_currFreeChunksIdx--];
 			
 			m_used += m_chunkSize;
 
-			return freeChunk;
+			assert(PTR_TO_INT(dataAddress) % alignment == 0 && "Data address must be aligment");
+
+			return dataAddress;
 		}
 
 		bool Free(void* ptr) override

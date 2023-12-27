@@ -1,25 +1,18 @@
 #pragma once
-#include <cassert>
 #include "AllocatorInterface.h"
-
+#include <cassert>
+#include <vector>
+#include <algorithm>
 namespace MemAlloc
 {
 	class FreeListAllocator : public AllocatorInterface
 	{
-		struct alignas(sizeof(std::size_t)) FreeHeader
-		{
-			std::size_t blockSize;
-		};
-
 		struct alignas(sizeof(std::size_t)) AllocationHeader
 		{
 			std::size_t blockSize;
-			char padding;
 		};
 
 		const std::size_t cAllocationHeaderSize = sizeof(AllocationHeader);
-
-		typedef SinglyLinkedList<FreeHeader>::Node FreeNode;
 
 	public:
 		enum PlacementPolicy
@@ -31,7 +24,7 @@ namespace MemAlloc
 		FreeListAllocator(FreeListAllocator& freeListAllocator) = delete;
 
 		FreeListAllocator(const std::size_t totalSize, const PlacementPolicy pPolicy)
-			: AllocatorInterface(totalSize), m_freeList()
+			: AllocatorInterface(totalSize)
 		{
 			m_pPolicy = pPolicy;
 		}
@@ -52,46 +45,57 @@ namespace MemAlloc
 
 			m_start_ptr = malloc(m_totalSize);
 
+			m_freeNodes.reserve(1000);
+
 			Reset();
 		}
+
+		struct alignas(sizeof(std::size_t)) MemBlock
+		{
+			void* memBlock = nullptr;
+			size_t blockSize = 0;
+		};
+
+		using TMemBlocks = std::vector<MemBlock>;
 
 		void* Allocate(const std::size_t size, const std::size_t alignment = sizeof(std::size_t)) override
 		{
 			// Search through the free list for a free block that has enough space to allocate our data
-			FreeNode *freeNode = nullptr, *previousNode = nullptr;
 
-			const std::size_t requiredSize = cAllocationHeaderSize + size;
-			Find(requiredSize, previousNode, freeNode);
+			const std::size_t padding = alignment - (cAllocationHeaderSize + size) % alignment;
+			const std::size_t requiredSize = cAllocationHeaderSize + size + padding;
 
-			assert(freeNode != nullptr && "Not enough memory");
+			const auto it = Find(requiredSize);
+			assert(it != m_freeNodes.end() && "Not enough memory");
+			if (it == m_freeNodes.end())
+			{
+				return nullptr;
+			}
 
-			const std::size_t restSize = freeNode->data.blockSize - requiredSize;
+			const std::size_t restSize = it->blockSize - requiredSize;
+			void* ptr = it->memBlock;
 
 			if (restSize > 0)
 			{
-				const char padding = CalculatePadding(PTR_TO_INT(freeNode) + requiredSize, alignment);
-
-				// We have to split the block into the data block and a free block of size 'rest'
-				FreeNode* newFreeNode = reinterpret_cast<FreeNode*>(PTR_TO_INT(freeNode) + requiredSize + padding);
-				newFreeNode->data.blockSize = restSize;
-				newFreeNode->padding = padding;
-				newFreeNode->next = nullptr;
-
-				m_freeList.insert(freeNode, newFreeNode);
+				MemBlock newMemNode{reinterpret_cast<void*>(PTR_TO_INT(it->memBlock) + requiredSize), restSize};
+				auto newIt = m_freeNodes.emplace(it, newMemNode);
+				m_freeNodes.erase(++newIt);
+			}
+			else
+			{
+				m_freeNodes.erase(it);
 			}
 
-			m_freeList.remove(previousNode, freeNode);
-
 			// Setup data block
-			const char freeNodePadding = freeNode->padding;
-			const std::size_t headerAddress = PTR_TO_INT(freeNode);
-			AllocationHeader* allocationHeader = reinterpret_cast<AllocationHeader*>(headerAddress);
+			const std::size_t headerAddress = PTR_TO_INT(ptr);
+			AllocationHeader* allocationHeader = reinterpret_cast<AllocationHeader*>(ptr);
 			allocationHeader->blockSize = requiredSize;
-			allocationHeader->padding = freeNodePadding;
 
-			const std::size_t dataAddress = headerAddress + cAllocationHeaderSize;			
+			const std::size_t dataAddress = headerAddress + cAllocationHeaderSize;
 
 			m_used += requiredSize;
+
+			assert(dataAddress % alignment == 0 && "Data address must be aligment");
 
 			return (void*)dataAddress;
 		}
@@ -99,36 +103,26 @@ namespace MemAlloc
 		bool Free(void* ptr) override
 		{
 			// Insert it in a sorted position by the address number
+
 			const std::size_t currentAddress = PTR_TO_INT(ptr);
 			const std::size_t headerAddress = currentAddress - cAllocationHeaderSize;
 
 			const AllocationHeader* allocationHeader = reinterpret_cast<AllocationHeader*>(headerAddress);
-			const std::size_t blockSize = allocationHeader->blockSize;
-			const char padding = allocationHeader->padding;
 
-			FreeNode* freeNode = reinterpret_cast<FreeNode*>(headerAddress);
+			const MemBlock freeMemNode{reinterpret_cast<void*>(headerAddress), 0};
 
-			freeNode->data.blockSize = blockSize;
-			freeNode->padding = padding;
-			freeNode->next = nullptr;
+			const auto it = std::lower_bound(m_freeNodes.begin(), m_freeNodes.end(), freeMemNode,
+			                                 [](const MemBlock& memNode, const MemBlock& freeMemNode) {
+				                                 return memNode.memBlock < freeMemNode.memBlock;
+			                                 });
 
-			FreeNode* it = m_freeList.head;
-			FreeNode* itPrev = nullptr;
-			while (it != nullptr)
-			{
-				if (ptr < it)
-				{
-					m_freeList.insert(itPrev, freeNode);
-					break;
-				}
-				itPrev = it;
-				it = it->next;
-			}
+			const auto newFreeNodeIt = m_freeNodes.insert(it, freeMemNode);
 
-			m_used -= freeNode->data.blockSize;
+			newFreeNodeIt->blockSize = allocationHeader->blockSize;
+			m_used -= newFreeNodeIt->blockSize;
 
 			// Merge contiguous nodes
-			Coalescence(itPrev, freeNode);
+			MergeMemBlocks(newFreeNodeIt);
 
 			return true;
 		}
@@ -136,92 +130,76 @@ namespace MemAlloc
 		void Reset()
 		{
 			m_used = 0;
+			m_freeNodes.clear();
 
-			FreeNode* firstNode = static_cast<FreeNode*>(m_start_ptr);
-
-			firstNode->data.blockSize = m_totalSize;
-			firstNode->next = nullptr;
-			firstNode->padding = 0;
-
-			m_freeList.head = nullptr;
-			m_freeList.insert(nullptr, firstNode);
+			MemBlock memNode{m_start_ptr, m_totalSize};
+			m_freeNodes.emplace_back(memNode);
 		}
 
 	private:
-		void Coalescence(FreeNode* previousNode, FreeNode* freeNode)
+		void MergeMemBlocks(TMemBlocks::iterator newFreeNodeIt)
 		{
-			if (freeNode->next != nullptr &&
-				PTR_TO_INT(freeNode) + freeNode->data.blockSize == PTR_TO_INT(freeNode->next) - freeNode->next->padding)
+			if (newFreeNodeIt != m_freeNodes.begin() && newFreeNodeIt != m_freeNodes.end())
 			{
-				freeNode->data.blockSize += freeNode->next->data.blockSize + freeNode->next->padding;
-				m_freeList.remove(freeNode, freeNode->next);
+				const auto freeNodeNext = newFreeNodeIt + 1;
+				if (PTR_TO_INT(newFreeNodeIt->memBlock) + newFreeNodeIt->blockSize ==
+					PTR_TO_INT(freeNodeNext->memBlock))
+				{
+					newFreeNodeIt->blockSize += freeNodeNext->blockSize;
+					newFreeNodeIt = --m_freeNodes.erase(freeNodeNext);
+				}
 			}
 
-			if (previousNode != nullptr &&
-				PTR_TO_INT(previousNode) + previousNode->data.blockSize == PTR_TO_INT(freeNode) - freeNode->padding)
+			if (newFreeNodeIt != m_freeNodes.begin() && newFreeNodeIt != m_freeNodes.end())
 			{
-				previousNode->data.blockSize += freeNode->data.blockSize + freeNode->padding;
-				m_freeList.remove(previousNode, freeNode);
+				const auto freeNodePrev = newFreeNodeIt - 1;
+				if (PTR_TO_INT(freeNodePrev->memBlock) + freeNodePrev->blockSize == PTR_TO_INT(newFreeNodeIt->memBlock))
+				{
+					freeNodePrev->blockSize += newFreeNodeIt->blockSize;
+					m_freeNodes.erase(newFreeNodeIt);
+				}
 			}
 		}
 
-		void Find(const std::size_t size, FreeNode*& previousNode, FreeNode*& foundNode) const
+		TMemBlocks::const_iterator Find(const std::size_t size) const
 		{
 			switch (m_pPolicy)
 			{
 			case FIND_FIRST:
-				FindFirst(size, previousNode, foundNode);
-				break;
+				return FindFirst(size);
 			case FIND_BEST:
-				FindBest(size, previousNode, foundNode);
-				break;
+				return FindBest(size);
 			}
+
+			return m_freeNodes.end();
 		}
 
-		void FindFirst(const std::size_t size, FreeNode*& previousNode, FreeNode*& foundNode) const
+		TMemBlocks::const_iterator FindFirst(const std::size_t size) const
 		{
-			//Iterate list and return the first free block with a size >= than given size
-			FreeNode *it = m_freeList.head, *itPrev = nullptr;
-
-			while (it != nullptr)
-			{
-				if (it->data.blockSize >= size)
-				{
-					break;
-				}
-
-				itPrev = it;
-				it = it->next;
-			}
-			previousNode = itPrev;
-			foundNode = it;
+			return std::find_if(m_freeNodes.begin(), m_freeNodes.end(), [size](const MemBlock& memNode) {
+				return memNode.blockSize >= size;
+			});
 		}
 
-		void FindBest(const std::size_t size, FreeNode*& previousNode, FreeNode*& foundNode) const
+		TMemBlocks::const_iterator FindBest(const std::size_t size) const
 		{
-			// Iterate WHOLE list keeping a pointer to the best fit
 			const std::size_t smallestDiff = std::numeric_limits<std::size_t>::max();
-			FreeNode* bestBlock = nullptr;
-			FreeNode *it = m_freeList.head,
-			     *itPrev = nullptr;
+			auto bestIt = m_freeNodes.begin();
 
-			while (it != nullptr)
+			for (auto it = m_freeNodes.begin(); it != m_freeNodes.end(); ++it)
 			{
-				if (it->data.blockSize >= size && (it->data.blockSize - size < smallestDiff))
+				if (it->blockSize >= size && (it->blockSize - size < smallestDiff))
 				{
-					bestBlock = it;
+					bestIt = it;
 				}
-
-				itPrev = it;
-				it = it->next;
 			}
-			previousNode = itPrev;
-			foundNode = bestBlock;
+
+			return bestIt;
 		}
 
 	private:
 		void* m_start_ptr = nullptr;
 		PlacementPolicy m_pPolicy;
-		SinglyLinkedList<FreeHeader> m_freeList;
+		TMemBlocks m_freeNodes;
 	};
 }

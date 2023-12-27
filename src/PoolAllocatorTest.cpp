@@ -192,7 +192,7 @@ static void RunMultiThreadTest()
 		std::cout << green << "Test Passed!\n" << white;
 	}
 
-	Test::GetTestResults().emplace("PoolAllocatorMulti", duration);
+	Test::GetTestResults().emplace("PoolAlloc2Threads ", duration);
 }
 
 TEST_REGISTER(PoolAllocatorMultiTest, RunMultiThreadTest);

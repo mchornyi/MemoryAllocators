@@ -200,7 +200,7 @@ namespace MemAlloc
 
 	inline char CalculatePadding(const std::size_t baseAddress, const std::size_t alignment)
 	{
-		return baseAddress % alignment;
+		return  static_cast<char>(alignment - baseAddress % alignment);
 	}
 
 	inline std::size_t CalculatePaddingWithHeader(const std::size_t baseAddress, const std::size_t alignment,

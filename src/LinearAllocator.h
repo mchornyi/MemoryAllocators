@@ -52,13 +52,15 @@ namespace MemAlloc
 
 			m_offset += padding;
 
-			const std::size_t nextAddress = currentAddress + padding;
+			const std::size_t dataAddress = currentAddress + padding;
 
 			m_offset += size;
 
 			m_used = m_offset;
 
-			return (void*)nextAddress;
+			assert(dataAddress % alignment == 0 && "Data address must be aligment");
+
+			return (void*)dataAddress;
 		}
 
 		bool Free(void* ptr) override
