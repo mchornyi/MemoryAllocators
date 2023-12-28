@@ -62,6 +62,7 @@ static void BM_StackAlloc(benchmark::State& state)
 	{
 		auto* p = allocator.Allocate(1);
 		allocator.Free(p);
+		benchmark::DoNotOptimize(p);
 	}
 
 	state.SetBytesProcessed(state.iterations());

@@ -53,6 +53,7 @@ static void BM_LinerAlloc(benchmark::State& state)
 	for (auto _ : state)
 	{
 		auto* p = allocator.Allocate(1);
+		benchmark::DoNotOptimize(p);
 		// We should not Reset here due to specific of this allocator
 	}
 

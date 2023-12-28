@@ -51,6 +51,7 @@ static void BM_MallocAlloc(benchmark::State& state)
 	{
 		void* p = malloc(1);
 		free(p);
+		benchmark::DoNotOptimize(p);
 	}
 
 	state.SetBytesProcessed(state.iterations());
