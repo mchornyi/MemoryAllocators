@@ -22,6 +22,8 @@ void PrintResults()
 	{
 		std::cout << result.first << ": " << result.second << " ns\n";
 	}
+
+	std::cout << "\n";
 }
 
 void Test::Run()

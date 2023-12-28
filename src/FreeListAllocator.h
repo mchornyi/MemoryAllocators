@@ -64,7 +64,9 @@ namespace MemAlloc
 
 			const std::size_t padding = alignment - (cAllocationHeaderSize + size) % alignment;
 			const std::size_t requiredSize = cAllocationHeaderSize + size + padding;
-
+			
+			SpinlockGuard guard(m_spinlock);
+			
 			const auto it = Find(requiredSize);
 			assert(it != m_freeNodes.end() && "Not enough memory");
 			if (it == m_freeNodes.end())
@@ -110,6 +112,8 @@ namespace MemAlloc
 			const AllocationHeader* allocationHeader = reinterpret_cast<AllocationHeader*>(headerAddress);
 
 			const MemBlock freeMemNode{reinterpret_cast<void*>(headerAddress), 0};
+			
+			SpinlockGuard guard(m_spinlock);
 
 			const auto it = std::lower_bound(m_freeNodes.begin(), m_freeNodes.end(), freeMemNode,
 			                                 [](const MemBlock& memNode, const MemBlock& freeMemNode) {
@@ -201,5 +205,6 @@ namespace MemAlloc
 		void* m_start_ptr = nullptr;
 		PlacementPolicy m_pPolicy;
 		TMemBlocks m_freeNodes;
+		Spinlock m_spinlock;
 	};
 }

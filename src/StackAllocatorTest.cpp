@@ -1,10 +1,10 @@
-#include <list>
-
 #include "StackAllocator.h"
-
 #include "Test.h"
+#include "benchmark/benchmark.h"
 
+#include <list>
 #include <stack>
+
 using namespace MemAlloc;
 
 static void RunTest()
@@ -52,3 +52,19 @@ static void RunTest()
 }
 
 TEST_REGISTER(StackAllocatorTest, RunTest);
+
+static void BM_StackAlloc(benchmark::State& state)
+{
+	StackAllocator allocator(sMaxChunksNum * sMaxChunkSize);
+	allocator.Init();
+
+	for (auto _ : state)
+	{
+		auto* p = allocator.Allocate(1);
+		allocator.Free(p);
+	}
+
+	state.SetBytesProcessed(state.iterations());
+}
+
+BENCHMARK(BM_StackAlloc);

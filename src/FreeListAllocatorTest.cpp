@@ -1,6 +1,9 @@
 #include "FreeListAllocator.h"
 #include "Test.h"
+#include "benchmark/benchmark.h"
+
 #include <vector>
+
 using namespace MemAlloc;
 
 static void RunTest()
@@ -50,3 +53,20 @@ static void RunTest()
 }
 
 TEST_REGISTER(FreeListAllocatorTest, RunTest);
+
+static void BM_FreeListAlloc(benchmark::State& state)
+{
+	FreeListAllocator allocator(sMaxChunksNum * sMaxChunkSize, MemAlloc::FreeListAllocator::FIND_FIRST);
+
+	allocator.Init();
+
+	for (auto _ : state)
+	{
+		auto* p = allocator.Allocate(1);
+		allocator.Free(p);
+	}
+
+	state.SetBytesProcessed(state.iterations());
+}
+
+BENCHMARK(BM_FreeListAlloc);

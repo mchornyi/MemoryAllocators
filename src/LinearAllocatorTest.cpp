@@ -1,5 +1,6 @@
 #include "LinearAllocator.h"
 #include "Test.h"
+#include "benchmark/benchmark.h"
 
 #include <array>
 #include <chrono>
@@ -44,3 +45,18 @@ static void RunTest()
 }
 
 TEST_REGISTER(LinerAllocatorTest, RunTest);
+
+static void BM_LinerAlloc(benchmark::State& state)
+{
+	LinearAllocator allocator(sMaxChunksNum * sMaxChunkSize);
+
+	for (auto _ : state)
+	{
+		auto* p = allocator.Allocate(1);
+		// We should not Reset here due to specific of this allocator
+	}
+
+	state.SetBytesProcessed(state.iterations());
+}
+
+BENCHMARK(BM_LinerAlloc);

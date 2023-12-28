@@ -1,4 +1,5 @@
 #include "Test.h"
+#include "benchmark/benchmark.h"
 
 #include <chrono>
 #include <iostream>
@@ -43,3 +44,16 @@ static void RunTest()
 }
 
 TEST_REGISTER(MallocAllocatorTest, RunTest);
+
+static void BM_MallocAlloc(benchmark::State& state)
+{
+	for (auto _ : state)
+	{
+		void* p = malloc(1);
+		free(p);
+	}
+
+	state.SetBytesProcessed(state.iterations());
+}
+
+BENCHMARK(BM_MallocAlloc);

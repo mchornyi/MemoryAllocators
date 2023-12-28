@@ -1,5 +1,6 @@
 #include "PoolAllocator.h"
 #include "Test.h"
+#include "benchmark/benchmark.h"
 
 #include <array>
 #include <vector>
@@ -196,3 +197,18 @@ static void RunMultiThreadTest()
 }
 
 TEST_REGISTER(PoolAllocatorMultiTest, RunMultiThreadTest);
+
+static void BM_PoolAlloc(benchmark::State& state)
+{
+	PoolAllocators allocators;
+
+	for (auto _ : state)
+	{
+		auto* p = allocators.Allocate(1);
+		allocators.Free(p);
+	}
+
+	state.SetBytesProcessed(state.iterations());
+}
+
+BENCHMARK(BM_PoolAlloc);
