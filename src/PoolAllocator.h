@@ -114,7 +114,14 @@ namespace MemAlloc
 
 		void Reset()
 		{
-			SpinlockGuard guard(m_spinlock);
+			switch (cPoolAllocThreadPolicy)
+			{
+			case ENABLE_SPIN_LOCK:
+				m_spinlock.lock();
+				break;
+			case NONE:
+				break;
+			}
 
 			m_used = 0;
 
@@ -125,6 +132,15 @@ namespace MemAlloc
 			}
 
 			m_currFreeChunksIdx = m_chunksNum - 1;
+
+			switch (cPoolAllocThreadPolicy)
+			{
+			case ENABLE_SPIN_LOCK:
+				m_spinlock.unlock();
+				break;
+			case NONE:
+				break;
+			}
 		}
 
 		std::size_t GetChunkSize() const
