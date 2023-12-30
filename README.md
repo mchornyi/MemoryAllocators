@@ -12,69 +12,63 @@ Simple memory allocators with tests
 ```text
 StartTest: FreeListAllocator
 Desc: Allocates chunks(MaxChunksNum) of size = 'rand() % sMaxChunkSize + 1'. Deallocates in random order.
-MaxChunksNum 10000
+MaxChunksNum 1000
 MaxChunkSize 5120
-Time = 10715393ns
+Time = 426396ns
 Test Passed!
+FullMerge Test Passed!
 
 StartTest: LinerAllocator
 Desc: Allocates chunks(MaxChunksNum) of size = 'rand() % sMaxChunkSize + 1'. Deallocates by resetting.
-MaxChunksNum 10000
+MaxChunksNum 1000
 MaxChunkSize 5120
-Time = 93876ns
+Time = 12392ns
 Test Passed!
 
 StartTest: MallocAllocator
 Desc: Allocates chunks(MaxChunksNum) of size = 'rand() % sMaxChunkSize + 1'. Deallocates in random order.
-MaxChunksNum 10000
+MaxChunksNum 1000
 MaxChunkSize 5120
-Time = 14356226ns
+Time = 1123828ns
 Test Passed!
 
-StartMultiThreadTest: PoolAllocator
-Desc: Creates 9 pool allocators of different chunk size. Create 2 threads. Each thread allocates chunks(MaxChunksNum) of size = 'rand() % sMaxChunkSize + 1'. Deallocates in random order.
-MaxChunksNum 10000
-MaxChunkSize 5120
-Time = 3065385ns
-Test Passed!
 
 StartTest: PoolAllocator
 Desc: Creates 9 pool allocators of different chunk size. Allocates chunks(MaxChunksNum) of size = 'rand() % sMaxChunkSize + 1'. Deallocates in random order.
-MaxChunksNum 10000
+MaxChunksNum 1000
 MaxChunkSize 5120
-Time = 3929365ns
+Time = 99175ns
 Test Passed!
 
 StartTest: StackAllocator
 Desc: Allocates chunks(MaxChunksNum) of size = 'rand() % sMaxChunkSize + 1'. Deallocates in LIFO order.
-MaxChunksNum 10000
+MaxChunksNum 1000
 MaxChunkSize 5120
-Time = 446074ns
+Time = 66033ns
 Test Passed!
 
 Test results:
-LinerAllocator    : 93876 ns
-StackAllocator    : 446074 ns
-PoolAlloc2Threads : 3065385 ns
-PoolAllocator     : 3929365 ns
-FreeListAllocator : 10715393 ns
-MallocAllocator   : 14356226 ns
+LinerAllocator    : 12392 ns
+StackAllocator    : 66033 ns
+PoolAllocator     : 99175 ns
+FreeListAllocator : 426396 ns
+MallocAllocator   : 1123828 ns
 
-2023-12-28T18:35:32+00:00
+2023-12-30T15:12:03+00:00
 Running /workspaces/MemoryAllocators/build/bin/main
-Run on (2 X 3244.27 MHz CPU s)
+Run on (2 X 3242.64 MHz CPU s)
 CPU Caches:
   L1 Data 32 KiB (x1)
   L1 Instruction 32 KiB (x1)
   L2 Unified 512 KiB (x1)
   L3 Unified 32768 KiB (x1)
-Load Average: 0.43, 0.30, 0.37
+Load Average: 0.86, 0.69, 0.57
 ---------------------------------------------------------------------------
 Benchmark                 Time             CPU   Iterations UserCounters...
 ---------------------------------------------------------------------------
-BM_FreeListAlloc       16.2 ns         15.7 ns     42746499 bytes_per_second=60.7027Mi/s
-BM_LinerAlloc         0.344 ns        0.343 ns   1821976735 bytes_per_second=2.71194Gi/s
-BM_MallocAlloc         9.62 ns         9.60 ns     69069564 bytes_per_second=99.312Mi/s
-BM_PoolAlloc           8.99 ns         8.95 ns     79228720 bytes_per_second=106.54Mi/s
-BM_StackAlloc         0.318 ns        0.317 ns   2227509552 bytes_per_second=2.93384Gi/s
+BM_FreeListAlloc       7.55 ns         7.10 ns    130255095 bytes_per_second=134.274Mi/s
+BM_LinerAlloc         0.405 ns        0.378 ns   2069858921 bytes_per_second=2.46647Gi/s
+BM_MallocAlloc         9.89 ns         9.88 ns     63633645 bytes_per_second=96.4829Mi/s
+BM_PoolAlloc           2.08 ns         2.08 ns    324106785 bytes_per_second=459.361Mi/s
+BM_StackAlloc         0.318 ns        0.318 ns   1651904440 bytes_per_second=2.93306Gi/s
 ```
