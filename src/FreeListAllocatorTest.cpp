@@ -13,7 +13,7 @@ static void RunTest()
 	std::cout << "MaxChunksNum " << sMaxChunksNum << "\n";
 	std::cout << "MaxChunkSize " << sMaxChunkSize << "\n";
 
-	FreeListAllocator allocator(sMaxChunksNum * sMaxChunkSize, MemAlloc::FreeListAllocator::FIND_FIRST);
+	FreeListAllocator allocator(sMaxChunksNum * sMaxChunkSize);
 	allocator.Init();
 
 	std::vector<void*> memPointers;
@@ -56,7 +56,7 @@ TEST_REGISTER(FreeListAllocatorTest, RunTest);
 
 static void BM_FreeListAlloc(benchmark::State& state)
 {
-	FreeListAllocator allocator(sMaxChunksNum * sMaxChunkSize, MemAlloc::FreeListAllocator::FIND_FIRST);
+	FreeListAllocator allocator(sMaxChunksNum * sMaxChunkSize);
 
 	allocator.Init();
 

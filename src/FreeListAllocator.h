@@ -1,10 +1,11 @@
 #pragma once
 #include "AllocatorInterface.h"
 #include <cassert>
-#include <vector>
-#include <algorithm>
+#include <array>
 namespace MemAlloc
 {
+	constexpr std::size_t L1Size = 32768; // 32KiB
+
 	class FreeListAllocator : public AllocatorInterface
 	{
 		struct alignas(sizeof(std::size_t)) AllocationHeader
@@ -12,21 +13,14 @@ namespace MemAlloc
 			std::size_t blockSize;
 		};
 
-		const std::size_t cAllocationHeaderSize = sizeof(AllocationHeader);
+		const uint32_t cAllocationHeaderSize = sizeof(AllocationHeader);
 
 	public:
-		enum PlacementPolicy
-		{
-			FIND_FIRST,
-			FIND_BEST
-		};
-
 		FreeListAllocator(FreeListAllocator& freeListAllocator) = delete;
 
-		FreeListAllocator(const std::size_t totalSize, const PlacementPolicy pPolicy)
+		FreeListAllocator(const std::size_t totalSize)
 			: AllocatorInterface(totalSize)
 		{
-			m_pPolicy = pPolicy;
 		}
 
 		~FreeListAllocator() override
@@ -43,90 +37,82 @@ namespace MemAlloc
 				m_start_ptr = nullptr;
 			}
 
-			m_start_ptr = malloc(m_totalSize);
-
-			m_freeNodes.reserve(1000);
+			m_start_ptr = static_cast<char*>(malloc(m_totalSize));
 
 			Reset();
 		}
 
 		struct alignas(sizeof(std::size_t)) MemBlock
 		{
-			void* memBlock = nullptr;
-			size_t blockSize = 0;
+			std::size_t memBlockOffset = 0;
+			std::size_t blockSize = 0;
 		};
-
-		using TMemBlocks = std::vector<MemBlock>;
 
 		void* Allocate(const std::size_t size, const std::size_t alignment = sizeof(std::size_t)) override
 		{
 			// Search through the free list for a free block that has enough space to allocate our data
 
 			const std::size_t padding = alignment - (cAllocationHeaderSize + size) % alignment;
-			const std::size_t requiredSize = cAllocationHeaderSize + size + padding;
-			
-			SpinlockGuard guard(m_spinlock);
-			
-			const auto it = Find(requiredSize);
-			assert(it != m_freeNodes.end() && "Not enough memory");
-			if (it == m_freeNodes.end())
+			const std::size_t requiredSize = cAllocationHeaderSize + static_cast<uint32_t>(size) + padding;
+
+			//SpinlockGuard guard(m_spinlock);
+
+			const int freeMemBlockIndex = FindFreeMemBlockIndex(requiredSize);
+			assert(freeMemBlockIndex != -1 && "Not enough memory");
+			if (freeMemBlockIndex == -1)
 			{
 				return nullptr;
 			}
 
-			const std::size_t restSize = it->blockSize - requiredSize;
-			void* ptr = it->memBlock;
+			const std::size_t restSize = m_freeMemBlocks[freeMemBlockIndex].blockSize - requiredSize;
+			void* freeMemBlock = m_start_ptr + m_freeMemBlocks[freeMemBlockIndex].memBlockOffset;
 
 			if (restSize > 0)
 			{
-				MemBlock newMemNode{reinterpret_cast<void*>(PTR_TO_INT(it->memBlock) + requiredSize), restSize};
-				auto newIt = m_freeNodes.emplace(it, newMemNode);
-				m_freeNodes.erase(++newIt);
+				m_freeMemBlocks[freeMemBlockIndex] = {
+					(m_freeMemBlocks[freeMemBlockIndex].memBlockOffset + 
+					static_cast<uint32_t>(requiredSize)), static_cast<uint32_t>(restSize)
+				};
 			}
 			else
 			{
-				m_freeNodes.erase(it);
+				std::swap(m_freeMemBlocks[freeMemBlockIndex - 1], m_freeMemBlocks[m_currSize]);
+				--m_currSize;
 			}
 
 			// Setup data block
-			const std::size_t headerAddress = PTR_TO_INT(ptr);
-			AllocationHeader* allocationHeader = reinterpret_cast<AllocationHeader*>(ptr);
-			allocationHeader->blockSize = requiredSize;
+			AllocationHeader* allocationHeader = static_cast<AllocationHeader*>(freeMemBlock);
 
-			const std::size_t dataAddress = headerAddress + cAllocationHeaderSize;
+			void* resultPtr = (PTR_TO_CHAR(allocationHeader) + cAllocationHeaderSize);
+			assert(PTR_TO_INT(resultPtr) % alignment == 0 && "Data address must be aligment");
 
 			m_used += requiredSize;
 
-			assert(dataAddress % alignment == 0 && "Data address must be aligment");
+			allocationHeader->blockSize = requiredSize;
 
-			return (void*)dataAddress;
+			return resultPtr;
 		}
 
 		bool Free(void* ptr) override
 		{
 			// Insert it in a sorted position by the address number
 
-			const std::size_t currentAddress = PTR_TO_INT(ptr);
-			const std::size_t headerAddress = currentAddress - cAllocationHeaderSize;
+			AllocationHeader* allocationHeader = reinterpret_cast<AllocationHeader*>(PTR_TO_CHAR(ptr) - cAllocationHeaderSize);
 
-			const AllocationHeader* allocationHeader = reinterpret_cast<AllocationHeader*>(headerAddress);
+			const MemBlock freeMemBlock{static_cast<uint32_t>(reinterpret_cast<char*>(allocationHeader) - m_start_ptr), 0};
 
-			const MemBlock freeMemNode{reinterpret_cast<void*>(headerAddress), 0};
-			
-			SpinlockGuard guard(m_spinlock);
+			//SpinlockGuard guard(m_spinlock);
 
-			const auto it = std::lower_bound(m_freeNodes.begin(), m_freeNodes.end(), freeMemNode,
-			                                 [](const MemBlock& memNode, const MemBlock& freeMemNode) {
-				                                 return memNode.memBlock < freeMemNode.memBlock;
-			                                 });
+			assert(m_currSize != m_freeMemBlocks.size() && "m_currSize != m_freeMemBlocks.size()");
 
-			const auto newFreeNodeIt = m_freeNodes.insert(it, freeMemNode);
+			m_freeMemBlocks[m_currSize] = freeMemBlock;
+			++m_currSize;
 
-			newFreeNodeIt->blockSize = allocationHeader->blockSize;
-			m_used -= newFreeNodeIt->blockSize;
+			m_freeMemBlocks[m_currSize - 1].blockSize = allocationHeader->blockSize;
+			m_used -= m_freeMemBlocks[m_currSize - 1].blockSize;
 
 			// Merge contiguous nodes
-			MergeMemBlocks(newFreeNodeIt);
+			MergeMemBlocks();
 
 			return true;
 		}
@@ -134,77 +120,64 @@ namespace MemAlloc
 		void Reset()
 		{
 			m_used = 0;
-			m_freeNodes.clear();
-
-			MemBlock memNode{m_start_ptr, m_totalSize};
-			m_freeNodes.emplace_back(memNode);
+			m_freeMemBlocks[0] = {0, static_cast<uint32_t>(m_totalSize)};
+			m_currSize = 1;
 		}
 
 	private:
-		void MergeMemBlocks(TMemBlocks::iterator newFreeNodeIt)
+		void MergeMemBlocks()
 		{
-			if (newFreeNodeIt != m_freeNodes.begin() && newFreeNodeIt != m_freeNodes.end())
-			{
-				const auto freeNodeNext = newFreeNodeIt + 1;
-				if (PTR_TO_INT(newFreeNodeIt->memBlock) + newFreeNodeIt->blockSize ==
-					PTR_TO_INT(freeNodeNext->memBlock))
-				{
-					newFreeNodeIt->blockSize += freeNodeNext->blockSize;
-					newFreeNodeIt = --m_freeNodes.erase(freeNodeNext);
-				}
-			}
+			const int pivotIndex = static_cast<int>(m_currSize) - 1;
+			const auto& pivotMemBlock = m_freeMemBlocks[pivotIndex];
 
-			if (newFreeNodeIt != m_freeNodes.begin() && newFreeNodeIt != m_freeNodes.end())
+			for (int i = pivotIndex - 1; i >= 0; --i)
 			{
-				const auto freeNodePrev = newFreeNodeIt - 1;
-				if (PTR_TO_INT(freeNodePrev->memBlock) + freeNodePrev->blockSize == PTR_TO_INT(newFreeNodeIt->memBlock))
+				if (m_freeMemBlocks[i].memBlockOffset + m_freeMemBlocks[i].blockSize == pivotMemBlock.memBlockOffset)
 				{
-					freeNodePrev->blockSize += newFreeNodeIt->blockSize;
-					m_freeNodes.erase(newFreeNodeIt);
+					m_freeMemBlocks[i].blockSize += pivotMemBlock.blockSize;
+					--m_currSize;
+					return;
+				}
+
+				if (m_freeMemBlocks[i].memBlockOffset == pivotMemBlock.memBlockOffset + pivotMemBlock.blockSize)
+				{
+					m_freeMemBlocks[i].memBlockOffset = pivotMemBlock.memBlockOffset;
+					m_freeMemBlocks[i].blockSize += pivotMemBlock.blockSize;
+					--m_currSize;
+					return;
 				}
 			}
 		}
 
-		TMemBlocks::const_iterator Find(const std::size_t size) const
+		int FindFreeMemBlockIndex(const std::size_t size) const
 		{
-			switch (m_pPolicy)
+			if (m_currSize == 0 || m_currSize == m_freeMemBlocks.size() || m_used == m_totalSize)
 			{
-			case FIND_FIRST:
-				return FindFirst(size);
-			case FIND_BEST:
-				return FindBest(size);
+				return -1;
 			}
 
-			return m_freeNodes.end();
-		}
+			std::size_t smallestDiff = std::numeric_limits<std::size_t>::max();
+			int bestIndex = -1;
 
-		TMemBlocks::const_iterator FindFirst(const std::size_t size) const
-		{
-			return std::find_if(m_freeNodes.begin(), m_freeNodes.end(), [size](const MemBlock& memNode) {
-				return memNode.blockSize >= size;
-			});
-		}
-
-		TMemBlocks::const_iterator FindBest(const std::size_t size) const
-		{
-			const std::size_t smallestDiff = std::numeric_limits<std::size_t>::max();
-			auto bestIt = m_freeNodes.begin();
-
-			for (auto it = m_freeNodes.begin(); it != m_freeNodes.end(); ++it)
+			for (int i = static_cast<int>(m_currSize) - 1; i >= 0; --i)
 			{
-				if (it->blockSize >= size && (it->blockSize - size < smallestDiff))
+				if (m_freeMemBlocks[i].blockSize >= size && (static_cast<int>(m_freeMemBlocks[i].blockSize) - size <
+					smallestDiff))
 				{
-					bestIt = it;
+					smallestDiff = m_freeMemBlocks[i].blockSize - size;
+					bestIndex = i;
 				}
 			}
 
-			return bestIt;
+			return bestIndex;
 		}
 
 	private:
-		void* m_start_ptr = nullptr;
-		PlacementPolicy m_pPolicy;
-		TMemBlocks m_freeNodes;
+		char* m_start_ptr = nullptr;
+		std::size_t m_currSize = 0;
 		Spinlock m_spinlock;
+		// We must fit to 32 KiB = L1 cache size
+		std::array<MemBlock, (L1Size - sizeof(m_start_ptr) - sizeof(m_currSize) - sizeof(m_spinlock)) / sizeof(MemBlock)> m_freeMemBlocks;
+		
 	};
 }

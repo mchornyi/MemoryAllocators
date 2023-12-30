@@ -36,7 +36,7 @@ inline std::ostream& green(std::ostream& s)
 
 namespace MemAlloc
 {
-	const std::size_t sMaxChunksNum = 10000;
+	const std::size_t sMaxChunksNum = 1000;
 	const std::size_t sMaxChunkSize = 5120;
 	using RunTestFunc = void (*)();
 

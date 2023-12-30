@@ -3,7 +3,7 @@
 #include <thread>
 #include <iostream>
 #define PTR_TO_INT(PTR) (reinterpret_cast<std::size_t>(PTR))
-
+#define PTR_TO_CHAR(PTR) (reinterpret_cast<char*>(PTR))
 namespace MemAlloc
 {
 	class AllocatorInterface
@@ -201,30 +201,5 @@ namespace MemAlloc
 	inline char CalculatePadding(const std::size_t baseAddress, const std::size_t alignment)
 	{
 		return  static_cast<char>(alignment - baseAddress % alignment);
-	}
-
-	inline std::size_t CalculatePaddingWithHeader(const std::size_t baseAddress, const std::size_t alignment,
-	                                              const std::size_t headerSize)
-	{
-		std::size_t padding = CalculatePadding(baseAddress, alignment);
-		std::size_t neededSpace = headerSize;
-
-		if (padding < neededSpace)
-		{
-			// Header does not fit - Calculate next aligned address that header fits
-			neededSpace -= padding;
-
-			// How many alignments I need to fit the header        
-			if (neededSpace % alignment > 0)
-			{
-				padding += alignment * (1 + (neededSpace / alignment));
-			}
-			else
-			{
-				padding += alignment * (neededSpace / alignment);
-			}
-		}
-
-		return padding;
 	}
 }
