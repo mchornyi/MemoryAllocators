@@ -14,7 +14,7 @@ static void RunTest()
 	std::cout << "MaxChunkSize " << sMaxChunkSize << "\n";
 
 	FreeListAllocator allocator(sMaxChunksNum * sMaxChunkSize);
-	assert( sizeof(allocator) <= L1Size);
+	assert( sizeof(allocator) <= cFreeMemBlocksSize);
 	allocator.Init();
 
 	std::vector<void*> memPointers;

@@ -15,7 +15,10 @@ namespace MemAlloc
 
 	const ThreadPolicy cFreeListThreadPolicy(NONE);
 
-	constexpr std::size_t L1Size = 32768; // 32KiB
+	constexpr std::size_t cL1Size = 32768; // 32KiB
+	constexpr std::size_t cL1DSize = 2*cL1Size; // 64KiB
+	constexpr std::size_t cFreeMemBlocksSize = cL1Size;
+
 	class alignas(sizeof(std::size_t)) FreeListAllocator : public AllocatorInterface
 	{
 		struct alignas(sizeof(std::size_t)) AllocationHeader
@@ -141,6 +144,10 @@ namespace MemAlloc
 			}
 
 			assert(!ShouldFullMerge() && "There is no free space for free a memory block!");
+			if (ShouldFullMerge())
+			{
+				return false;
+			}			
 
 			m_freeMemBlocks[m_currSize] = freeMemBlock;
 			++m_currSize;
@@ -258,7 +265,7 @@ namespace MemAlloc
 		std::size_t m_currSize = 0;
 		Spinlock m_spinlock;
 		// We must fit to 32 KiB = L1 cache size
-		std::array<MemBlock, (L1Size - sizeof(AllocatorInterface) - sizeof(m_start_ptr) - sizeof(m_currSize) - sizeof(
+		std::array<MemBlock, (cFreeMemBlocksSize - sizeof(AllocatorInterface) - sizeof(m_start_ptr) - sizeof(m_currSize) - sizeof(
 			           m_spinlock)) / sizeof(MemBlock)> m_freeMemBlocks;
 	};
 }
