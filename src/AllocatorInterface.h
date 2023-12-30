@@ -45,6 +45,12 @@ namespace MemAlloc
 		std::size_t m_used = 0;
 	};
 
+	enum ThreadPolicy
+	{
+		NONE = 0,
+		ENABLE_SPIN_LOCK = 1
+	};
+
 	class Spinlock
 	{
 	public:

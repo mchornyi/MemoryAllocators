@@ -5,6 +5,8 @@
 
 namespace MemAlloc
 {
+	const ThreadPolicy cPoolAllocThreadPolicy(NONE);
+
 	class PoolAllocator final : public AllocatorInterface
 	{
 	public:
@@ -44,7 +46,14 @@ namespace MemAlloc
 		{
 			assert(allocationSize <= m_chunkSize && "Allocation size must be <= to chunk size");
 
-			SpinlockGuard guard(m_spinlock);
+			switch (cPoolAllocThreadPolicy)
+			{
+			case ENABLE_SPIN_LOCK:
+				m_spinlock.lock();
+				break;
+			case NONE:
+				break;
+			}
 
 			assert(m_currFreeChunksIdx >= 0 && "The pool allocator is full");			
 			if (m_currFreeChunksIdx < 0)
@@ -58,12 +67,28 @@ namespace MemAlloc
 
 			assert(PTR_TO_INT(dataAddress) % alignment == 0 && "Data address must be aligment");
 
+			switch (cPoolAllocThreadPolicy)
+			{
+			case ENABLE_SPIN_LOCK:
+				m_spinlock.unlock();
+				break;
+			case NONE:
+				break;
+			}
+
 			return dataAddress;
 		}
 
 		bool Free(void* ptr) override
 		{
-			SpinlockGuard guard(m_spinlock);
+			switch (cPoolAllocThreadPolicy)
+			{
+			case ENABLE_SPIN_LOCK:
+				m_spinlock.lock();
+				break;
+			case NONE:
+				break;
+			}
 
 			if (PTR_TO_INT(ptr) < PTR_TO_INT(m_start_ptr) || PTR_TO_INT(ptr) >
 				PTR_TO_INT(m_start_ptr) + m_totalSize)
@@ -74,6 +99,15 @@ namespace MemAlloc
 			m_used -= m_chunkSize;
 
 			m_freeChunks[++m_currFreeChunksIdx] = ptr;
+
+			switch (cPoolAllocThreadPolicy)
+			{
+			case ENABLE_SPIN_LOCK:
+				m_spinlock.unlock();
+				break;
+			case NONE:
+				break;
+			}
 
 			return true;
 		}

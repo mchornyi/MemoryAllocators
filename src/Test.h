@@ -36,8 +36,8 @@ inline std::ostream& green(std::ostream& s)
 
 namespace MemAlloc
 {
-	const std::size_t sMaxChunksNum = 1000;
-	const std::size_t sMaxChunkSize = 5120;
+	extern const std::size_t sMaxChunksNum;
+	extern const std::size_t sMaxChunkSize;
 	using RunTestFunc = void (*)();
 
 	struct custom_compare final

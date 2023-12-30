@@ -144,6 +144,11 @@ TEST_REGISTER(PoolAllocatorTest, RunTest);
 
 static void RunMultiThreadTest()
 {
+	if(cPoolAllocThreadPolicy == NONE)
+	{
+		return;
+	}
+
 	std::cout << "StartMultiThreadTest: PoolAllocator\n";
 	std::cout << "Desc: Creates 9 pool allocators of different chunk size. Create 2 threads. Each thread allocates chunks(MaxChunksNum) of size = 'rand() % sMaxChunkSize + 1'. Deallocates in random order.\n";
 	std::cout << "MaxChunksNum " << sMaxChunksNum << "\n";

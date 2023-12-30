@@ -3,6 +3,9 @@
 
 using namespace MemAlloc;
 
+const std::size_t MemAlloc::sMaxChunksNum = 1000;
+const std::size_t MemAlloc::sMaxChunkSize = 5120;
+
 std::set<RunTestFunc>& GetTests()
 {
 	static std::set<RunTestFunc> sTests;

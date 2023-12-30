@@ -2,18 +2,28 @@
 #include "AllocatorInterface.h"
 #include <cassert>
 #include <array>
+
 namespace MemAlloc
 {
-	constexpr std::size_t L1Size = 32768; // 32KiB
+	enum MergePolicy
+	{
+		ENABLE_FAST_MERGE = 1,
+		ENABLE_FULL_MERGE = 2,
+		ENABLE_FULL_MERGE_IF_NO_SPACE = 3
+	};
+	const MergePolicy cMergePolicy(ENABLE_FULL_MERGE_IF_NO_SPACE);
 
-	class FreeListAllocator : public AllocatorInterface
+	const ThreadPolicy cFreeListThreadPolicy(NONE);
+
+	constexpr std::size_t L1Size = 32768; // 32KiB
+	class alignas(sizeof(std::size_t)) FreeListAllocator : public AllocatorInterface
 	{
 		struct alignas(sizeof(std::size_t)) AllocationHeader
 		{
 			std::size_t blockSize;
 		};
 
-		const uint32_t cAllocationHeaderSize = sizeof(AllocationHeader);
+		static const std::size_t cAllocationHeaderSize = sizeof(AllocationHeader);
 
 	public:
 		FreeListAllocator(FreeListAllocator& freeListAllocator) = delete;
@@ -55,7 +65,14 @@ namespace MemAlloc
 			const std::size_t padding = alignment - (cAllocationHeaderSize + size) % alignment;
 			const std::size_t requiredSize = cAllocationHeaderSize + static_cast<uint32_t>(size) + padding;
 
-			//SpinlockGuard guard(m_spinlock);
+			switch (cFreeListThreadPolicy)
+			{
+			case ENABLE_SPIN_LOCK:
+				m_spinlock.lock();
+				break;
+			case NONE:
+				break;
+			}
 
 			const int freeMemBlockIndex = FindFreeMemBlockIndex(requiredSize);
 			assert(freeMemBlockIndex != -1 && "Not enough memory");
@@ -70,8 +87,9 @@ namespace MemAlloc
 			if (restSize > 0)
 			{
 				m_freeMemBlocks[freeMemBlockIndex] = {
-					(m_freeMemBlocks[freeMemBlockIndex].memBlockOffset + 
-					static_cast<uint32_t>(requiredSize)), static_cast<uint32_t>(restSize)
+					(m_freeMemBlocks[freeMemBlockIndex].memBlockOffset +
+						static_cast<uint32_t>(requiredSize)),
+					static_cast<uint32_t>(restSize)
 				};
 			}
 			else
@@ -90,6 +108,15 @@ namespace MemAlloc
 
 			allocationHeader->blockSize = requiredSize;
 
+			switch (cFreeListThreadPolicy)
+			{
+			case ENABLE_SPIN_LOCK:
+				m_spinlock.unlock();
+				break;
+			case NONE:
+				break;
+			}
+
 			return resultPtr;
 		}
 
@@ -97,13 +124,23 @@ namespace MemAlloc
 		{
 			// Insert it in a sorted position by the address number
 
-			AllocationHeader* allocationHeader = reinterpret_cast<AllocationHeader*>(PTR_TO_CHAR(ptr) - cAllocationHeaderSize);
+			AllocationHeader* allocationHeader = reinterpret_cast<AllocationHeader*>(PTR_TO_CHAR(ptr) -
+				cAllocationHeaderSize);
 
-			const MemBlock freeMemBlock{static_cast<uint32_t>(reinterpret_cast<char*>(allocationHeader) - m_start_ptr), 0};
+			const MemBlock freeMemBlock{
+				static_cast<uint32_t>(reinterpret_cast<char*>(allocationHeader) - m_start_ptr), 0
+			};
 
-			//SpinlockGuard guard(m_spinlock);
+			switch (cFreeListThreadPolicy)
+			{
+			case ENABLE_SPIN_LOCK:
+				m_spinlock.lock();
+				break;
+			case NONE:
+				break;
+			}
 
-			assert(m_currSize != m_freeMemBlocks.size() && "m_currSize != m_freeMemBlocks.size()");
+			assert(!ShouldFullMerge() && "There is no free space for free a memory block!");
 
 			m_freeMemBlocks[m_currSize] = freeMemBlock;
 			++m_currSize;
@@ -111,8 +148,32 @@ namespace MemAlloc
 			m_freeMemBlocks[m_currSize - 1].blockSize = allocationHeader->blockSize;
 			m_used -= m_freeMemBlocks[m_currSize - 1].blockSize;
 
-			// Merge contiguous nodes
-			MergeMemBlocks();
+			// Merge contiguous memBlocks
+
+			switch (cMergePolicy)
+			{
+			case ENABLE_FAST_MERGE:
+				FastMergeMemBlocks(static_cast<int>(m_currSize) - 1);
+				break;
+			case ENABLE_FULL_MERGE:
+				FullMergeMemBlocks();
+				break;
+			case ENABLE_FULL_MERGE_IF_NO_SPACE:
+				if (ShouldFullMerge())
+				{
+					FullMergeMemBlocks();
+				}
+				break;
+			}
+
+			switch (cFreeListThreadPolicy)
+			{
+			case ENABLE_SPIN_LOCK:
+				m_spinlock.unlock();
+				break;
+			case NONE:
+				break;
+			}
 
 			return true;
 		}
@@ -124,10 +185,28 @@ namespace MemAlloc
 			m_currSize = 1;
 		}
 
-	private:
-		void MergeMemBlocks()
+		void FullMergeMemBlocks()
 		{
-			const int pivotIndex = static_cast<int>(m_currSize) - 1;
+			for (int i = static_cast<int>(m_currSize) - 1; i >= 0; --i)
+			{
+				FastMergeMemBlocks(i);
+			}
+		}
+
+		bool IsFullyMerged() const
+		{
+			return m_currSize == 1 && m_freeMemBlocks[0].memBlockOffset == 0 && m_freeMemBlocks[0].blockSize ==
+				m_totalSize;
+		}
+
+	private:
+		bool ShouldFullMerge() const
+		{
+			return m_currSize == m_freeMemBlocks.size();
+		}
+
+		void FastMergeMemBlocks(const int pivotIndex)
+		{
 			const auto& pivotMemBlock = m_freeMemBlocks[pivotIndex];
 
 			for (int i = pivotIndex - 1; i >= 0; --i)
@@ -135,6 +214,7 @@ namespace MemAlloc
 				if (m_freeMemBlocks[i].memBlockOffset + m_freeMemBlocks[i].blockSize == pivotMemBlock.memBlockOffset)
 				{
 					m_freeMemBlocks[i].blockSize += pivotMemBlock.blockSize;
+					std::swap(m_freeMemBlocks[pivotIndex], m_freeMemBlocks[m_currSize - 1]);
 					--m_currSize;
 					return;
 				}
@@ -143,6 +223,7 @@ namespace MemAlloc
 				{
 					m_freeMemBlocks[i].memBlockOffset = pivotMemBlock.memBlockOffset;
 					m_freeMemBlocks[i].blockSize += pivotMemBlock.blockSize;
+					std::swap(m_freeMemBlocks[pivotIndex], m_freeMemBlocks[m_currSize - 1]);
 					--m_currSize;
 					return;
 				}
@@ -151,7 +232,7 @@ namespace MemAlloc
 
 		int FindFreeMemBlockIndex(const std::size_t size) const
 		{
-			if (m_currSize == 0 || m_currSize == m_freeMemBlocks.size() || m_used == m_totalSize)
+			if (m_currSize == 0 || ShouldFullMerge() || m_used == m_totalSize)
 			{
 				return -1;
 			}
@@ -177,7 +258,7 @@ namespace MemAlloc
 		std::size_t m_currSize = 0;
 		Spinlock m_spinlock;
 		// We must fit to 32 KiB = L1 cache size
-		std::array<MemBlock, (L1Size - sizeof(m_start_ptr) - sizeof(m_currSize) - sizeof(m_spinlock)) / sizeof(MemBlock)> m_freeMemBlocks;
-		
+		std::array<MemBlock, (L1Size - sizeof(AllocatorInterface) - sizeof(m_start_ptr) - sizeof(m_currSize) - sizeof(
+			           m_spinlock)) / sizeof(MemBlock)> m_freeMemBlocks;
 	};
 }

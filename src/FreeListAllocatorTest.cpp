@@ -14,6 +14,7 @@ static void RunTest()
 	std::cout << "MaxChunkSize " << sMaxChunkSize << "\n";
 
 	FreeListAllocator allocator(sMaxChunksNum * sMaxChunkSize);
+	assert( sizeof(allocator) <= L1Size);
 	allocator.Init();
 
 	std::vector<void*> memPointers;
@@ -47,6 +48,16 @@ static void RunTest()
 	else
 	{
 		std::cout << green << "Test Passed!\n" << white;
+	}
+
+	allocator.FullMergeMemBlocks();
+	if (allocator.IsFullyMerged())
+	{
+		std::cout << green << "FullMerge Test Passed!\n" << white;
+	}
+	else
+	{
+		std::cout << red << "FullMerge Test Failed!\n" << white;
 	}
 
 	Test::GetTestResults().emplace("FreeListAllocator ", duration);
