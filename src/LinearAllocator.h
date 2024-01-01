@@ -22,7 +22,7 @@ namespace MemAlloc
 				free(m_start_ptr);
 			}
 
-			m_start_ptr = malloc(m_totalSize);
+			m_start_ptr = reinterpret_cast<char*>(malloc(m_totalSize));
 
 			m_offset = 0;
 		}
@@ -44,7 +44,7 @@ namespace MemAlloc
 				return nullptr;
 			}
 
-			void* dataAddress = reinterpret_cast<void*>(PTR_TO_INT(m_start_ptr) + m_offset);
+			void* dataAddress = m_start_ptr + m_offset;
 
 			m_offset += padding + size;
 			m_used = m_offset;
@@ -70,7 +70,7 @@ namespace MemAlloc
 		}
 
 	protected:
-		void* m_start_ptr = nullptr;
+		char* m_start_ptr = nullptr;
 		std::size_t m_offset = 0;
 	};
 }
