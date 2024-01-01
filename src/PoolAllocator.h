@@ -30,8 +30,8 @@ namespace MemAlloc
 
 		void Init() override
 		{
-			m_start_ptr = malloc(m_totalSize);
-			m_freeChunks = (void**)malloc(m_chunksNum * sizeof(void*));
+			m_start_ptr = static_cast<char*>(malloc(m_totalSize));
+			m_freeChunks = static_cast<char**>(malloc(m_chunksNum * sizeof(char*)));
 
 			Reset();
 		}
@@ -90,15 +90,14 @@ namespace MemAlloc
 				break;
 			}
 
-			if (PTR_TO_INT(ptr) < PTR_TO_INT(m_start_ptr) || PTR_TO_INT(ptr) >
-				PTR_TO_INT(m_start_ptr) + m_totalSize)
+			if (ptr < m_start_ptr || ptr > m_start_ptr + m_totalSize)
 			{
 				return false;
 			}
 
 			m_used -= m_chunkSize;
 
-			m_freeChunks[++m_currFreeChunksIdx] = ptr;
+			m_freeChunks[++m_currFreeChunksIdx] = static_cast<char*>(ptr);
 
 			switch (cPoolAllocThreadPolicy)
 			{
@@ -127,11 +126,10 @@ namespace MemAlloc
 
 			for (std::size_t i = 0; i < m_chunksNum; ++i)
 			{
-				const std::size_t address = reinterpret_cast<std::size_t>(m_start_ptr) + (i) * m_chunkSize;
-				m_freeChunks[i] = reinterpret_cast<void*>(address);
+				m_freeChunks[i] = m_start_ptr + (i)*m_chunkSize;
 			}
 
-			m_currFreeChunksIdx = m_chunksNum - 1;
+			m_currFreeChunksIdx = static_cast<int64_t>(m_chunksNum) - 1;
 
 			switch (cPoolAllocThreadPolicy)
 			{
@@ -149,8 +147,8 @@ namespace MemAlloc
 		}
 
 	private:
-		void** m_freeChunks = nullptr;
-		void* m_start_ptr = nullptr;
+		char** m_freeChunks = nullptr;
+		char* m_start_ptr = nullptr;
 		std::size_t m_chunksNum = 0;
 		std::size_t m_chunkSize = 0;
 		int64_t m_currFreeChunksIdx = -1;
